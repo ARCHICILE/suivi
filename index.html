@@ -31,7 +31,9 @@ main{max-width:480px;margin:-40px auto 24px;padding:0 16px}
 .pay{font-size:26px;font-weight:800}
 .btns{display:flex;gap:10px}
 .btns a{flex:1;text-align:center;padding:14px;border-radius:12px;text-decoration:none;font-weight:700;color:#fff}
-.call{background:var(--blue)}.wa{background:#25D366}
+.call{background:var(--blue)}.wa{background:#25D366}.ok{background:var(--green)}.no{background:#B42318}
+.ask{border:2px solid var(--blue);text-align:center}.ask .k{color:var(--muted)}.ask .pay{margin:8px 0 14px}
+.msg2{font-weight:700;text-align:center}
 .fr{font-size:13px;color:var(--muted);direction:ltr;text-align:left;margin-top:4px}
 .msg{text-align:center;color:var(--muted);padding:30px 10px}
 footer{text-align:center;color:var(--muted);font-size:12px;padding:10px}
@@ -74,16 +76,32 @@ async function load() {
     if (d.toPay != null && d.status !== "delivered") rows += '<div class="row"><span class="k">المبلغ الباقي · Reste à payer</span><span class="v pay">' + esc(money(d.toPay)) + "</span></div>";
     else if (d.price != null && d.status === "work") rows += '<div class="row"><span class="k">سعر التصليح · Prix</span><span class="v">' + esc(money(d.price)) + "</span></div>";
     if (d.status === "delivered" && d.result === "repaired" && d.warranty) rows += '<div class="row"><span class="k">الضمان · Garantie</span><span class="v">' + esc(d.warranty) + " j</span></div>";
+    let quote = "";
+    if (d.quote != null && d.quoteState === "asked") quote = '<div class="card ask"><div class="k">السعر المقترح للتصليح · Prix proposé</div><div class="pay">' + esc(money(d.quote)) +
+      '</div><div class="btns"><a class="ok" href="#" onclick="answer(true);return false">✅ موافق · J\'accepte</a><a class="no" href="#" onclick="answer(false);return false">✖ لا أوافق · Je refuse</a></div></div>';
+    else if (d.quoteState === "accepted") quote = '<div class="card msg2 done">✅ وافقتم على السعر ' + esc(money(d.quote)) + '، والتصليح متواصل.<div class="fr">Prix accepté, la réparation continue.</div></div>';
+    else if (d.quoteState === "refused") quote = '<div class="card msg2 returned">لم توافقوا على السعر. سيتصل بكم المحل لاستلام الهاتف.<div class="fr">Prix refusé : le magasin vous contactera.</div></div>';
+    cur = { t, price: d.quote };
     const n = wa(d.phone);
     const btns = n ? '<div class="btns"><a class="call" href="tel:' + esc(d.phone) + '">📞 اتصال · Appeler</a><a class="wa" href="https://wa.me/' + n + "?text=" + encodeURIComponent(d.code) + '">WhatsApp</a></div>' : "";
     main.innerHTML =
       '<div class="card"><div class="model">' + esc(d.model) + '</div><div class="code">' + esc(d.code) + "</div>" +
-      '<div class="status ' + esc(d.status) + '"><div class="ic">' + s[0] + "</div><div><b>" + s[1] + "</b><span>" + s[2] + (sub ? " · " + esc(sub) : "") + "</span></div></div></div>" +
+      '<div class="status ' + esc(d.status) + '"><div class="ic">' + s[0] + "</div><div><b>" + s[1] + "</b><span>" + s[2] + (sub ? " · " + esc(sub) : "") + "</span></div></div></div>" + quote +
       '<div class="card">' + rows + "</div>" + (btns ? '<div class="card">' + btns + "</div>" : "");
     document.getElementById("upd").textContent = "آخر تحديث · Mis à jour : " + new Date(d.updated).toLocaleString("fr-FR");
   } catch (e) {
     main.innerHTML = '<div class="card msg">تعذّر الاتصال. أعيدوا المحاولة.<div class="fr" style="text-align:center">Connexion impossible, réessayez.</div></div>';
   }
+}
+let cur = null;
+async function answer(ok) {
+  if (!cur) return;
+  if (!confirm(ok ? "تأكيد الموافقة على السعر " + money(cur.price) + " ؟\nConfirmer le prix ?" : "تأكيد رفض السعر؟ لن يُصلَّح الهاتف.\nConfirmer le refus ?")) return;
+  try {
+    const r = await fetch(URL_.replace("status_get", "status_answer"), { method: "POST", headers: { apikey: KEY, authorization: "Bearer " + KEY, "content-type": "application/json" }, body: JSON.stringify({ p_token: cur.t, p_accept: ok, p_price: cur.price }) });
+    if (!(await r.json())) alert("تغيّر السعر أو سبق الجواب. أعيدوا فتح الصفحة.\nLe prix a changé, rechargez la page.");
+  } catch (e) { alert("تعذّر الاتصال. أعيدوا المحاولة.\nConnexion impossible."); }
+  load();
 }
 load();
 </script>
